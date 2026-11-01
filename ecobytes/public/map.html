@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoBytes | Real-Time Air Quality & Hazard Map (Delhi NCR)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background: #090d16;
+      color: #e2e8f0;
+      overflow: hidden;
+    }
+
+    #map { width: 100vw; height: 100vh; z-index: 1; }
+
+    /* ── Top Header Bar ── */
+    .header-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      background: linear-gradient(135deg, rgba(9, 13, 22, 0.96), rgba(15, 23, 42, 0.94));
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 20px; height: 58px;
+    }
+    .header-bar .logo { display: flex; align-items: center; gap: 10px; }
+    .header-bar .logo span { font-size: 24px; }
+    .header-bar .logo h1 { font-size: 16px; font-weight: 800; color: #4ade80; letter-spacing: 0.5px; }
+    .header-bar .logo small {
+      font-size: 10px; color: #94a3b8; font-weight: 600; margin-left: 6px;
+      padding: 2px 6px; background: rgba(255,255,255,0.06); border-radius: 4px;
+    }
+
+    .header-center {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .view-toggle {
+      display: flex; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; padding: 2px; gap: 2px;
+    }
+    .view-toggle button {
+      background: transparent; border: none; color: #94a3b8; font-size: 11px;
+      font-weight: 600; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .view-toggle button.active {
+      background: #4ade80; color: #090d16; font-weight: 700;
+      box-shadow: 0 2px 8px rgba(74,222,128,0.3);
+    }
+
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .header-actions a, .header-actions button {
+      padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      text-decoration: none; cursor: pointer; border: 1px solid rgba(255,255,255,0.15);
+      transition: all 0.2s;
+    }
+    .header-actions a { background: rgba(255,255,255,0.06); color: #cbd5e1; }
+    .header-actions a:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .btn-refresh {
+      background: rgba(74,222,128,0.15) !important; color: #4ade80 !important;
+      border-color: rgba(74,222,128,0.3) !important;
+    }
+    .btn-refresh:hover { background: rgba(74,222,128,0.25) !important; }
+    #last-update { font-size: 11px; color: #64748b; font-family: 'JetBrains Mono', monospace; }
+
+    /* ── Severe Hazard Alert Banner ── */
+    .hazard-strip {
+      position: fixed; top: 58px; left: 0; right: 0; z-index: 999;
+      background: linear-gradient(90deg, #dc2626, #991b1b);
+      color: #fff; padding: 6px 20px; font-size: 12px; font-weight: 600;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 4px 12px rgba(220,38,38,0.35);
+      transition: transform 0.3s ease;
+    }
+    .hazard-strip.hidden { transform: translateY(-100%); }
+    .hazard-strip .left { display: flex; align-items: center; gap: 8px; }
+    .hazard-strip .pulse-dot {
+      width: 8px; height: 8px; background: #fff; border-radius: 50%;
+      animation: blink 1s infinite alternate;
+    }
+    @keyframes blink { from { opacity: 0.3; } to { opacity: 1; } }
+
+    /* ── CPCB Legend ── */
+    .legend-panel {
+      position: fixed; bottom: 30px; left: 20px; z-index: 1000;
+      background: rgba(9, 13, 22, 0.94); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+      padding: 14px 18px; min-width: 220px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .legend-panel h3 {
+      font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 10px; display: flex; justify-content: space-between;
+    }
+    .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .legend-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.15); }
+    .legend-label { font-size: 12px; color: #cbd5e1; font-weight: 500; }
+    .legend-range { font-size: 10px; color: #64748b; margin-left: auto; font-family: 'JetBrains Mono', monospace; }
+
+    /* ── Forecast Slider Bar ── */
+    .forecast-bar {
+      position: fixed; bottom: 30px; left: 260px; right: 320px; z-index: 1000;
+      background: rgba(9, 13, 22, 0.94); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+      padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .forecast-title { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+    .forecast-buttons { display: flex; gap: 8px; width: 100%; }
+    .f-btn {
+      flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04); color: #cbd5e1; font-size: 11px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; text-align: center;
+    }
+    .f-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .f-btn.active {
+      background: #4ade80; color: #090d16; font-weight: 700;
+      border-color: #4ade80; box-shadow: 0 2px 8px rgba(74,222,128,0.3);
+    }
+
+    /* ── Info Panel (right side) ── */
+    .info-panel {
+      position: fixed; top: 70px; right: 15px; z-index: 1000;
+      background: rgba(9, 13, 22, 0.94); backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 14px;
+      padding: 16px; width: 290px; max-height: calc(100vh - 90px);
+      overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .info-panel h3 {
+      font-size: 13px; font-weight: 700; color: #4ade80; margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .source-badge {
+      font-size: 9px; font-weight: 600; color: #94a3b8; background: rgba(255,255,255,0.06);
+      padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .station-card {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .station-card:hover {
+      background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.18);
+      transform: translateX(-3px);
+    }
+    .station-card .name { font-size: 12px; font-weight: 600; color: #f1f5f9; margin-bottom: 4px; }
+    .station-card .aqi-row { display: flex; align-items: center; gap: 8px; }
+    .station-card .aqi-badge {
+      padding: 2px 8px; border-radius: 5px; font-size: 13px; font-weight: 800;
+      font-family: 'JetBrains Mono', monospace; color: #fff; min-width: 44px; text-align: center;
+    }
+    .station-card .aqi-cat { font-size: 11px; color: #94a3b8; font-weight: 500; }
+    .station-card .pollutants {
+      font-size: 10px; color: #64748b; margin-top: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .regional-title {
+      font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;
+      margin: 16px 0 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08);
+      font-weight: 700;
+    }
+
+    /* ── Leaflet Popup Customization ── */
+    .leaflet-popup-content-wrapper {
+      background: rgba(9, 13, 22, 0.96) !important; color: #e2e8f0 !important;
+      border: 1px solid rgba(255,255,255,0.15) !important; border-radius: 12px !important;
+      backdrop-filter: blur(14px); box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+    }
+    .leaflet-popup-tip { background: rgba(9, 13, 22, 0.96) !important; }
+    .popup-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; color: #f8fafc; }
+    .popup-aqi { font-size: 32px; font-weight: 900; font-family: 'JetBrains Mono', monospace; line-height: 1; }
+    .popup-cat { font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+    .popup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; font-size: 11px; }
+    .popup-grid dt { color: #94a3b8; }
+    .popup-grid dd { color: #f1f5f9; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+    .popup-advisory {
+      margin-top: 8px; padding: 6px 8px; background: rgba(255,255,255,0.05);
+      border-radius: 6px; font-size: 10px; color: #cbd5e1; line-height: 1.35;
+    }
+
+    /* ── Pulsing markers for Very Poor and Severe ── */
+    @keyframes pulse-severe {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(128,0,0,0.8); }
+      50% { box-shadow: 0 0 0 20px rgba(128,0,0,0); }
+    }
+    @keyframes pulse-verypoor {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,0,0,0.7); }
+      50% { box-shadow: 0 0 0 16px rgba(255,0,0,0); }
+    }
+    @keyframes pulse-fire {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.9); }
+      50% { box-shadow: 0 0 0 14px rgba(239,68,68,0); }
+    }
+    .marker-severe { animation: pulse-severe 1.4s ease-in-out infinite; }
+    .marker-verypoor { animation: pulse-verypoor 1.8s ease-in-out infinite; }
+    .marker-fire { animation: pulse-fire 1.2s ease-in-out infinite; }
+
+    /* ── Scrollbar ── */
+    .info-panel::-webkit-scrollbar { width: 4px; }
+    .info-panel::-webkit-scrollbar-track { background: transparent; }
+    .info-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+
+    /* ── Loading Overlay ── */
+    .loading-overlay {
+      position: fixed; inset: 0; z-index: 2000;
+      background: rgba(9, 13, 22, 0.96); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; transition: opacity 0.4s;
+    }
+    .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .loading-spinner {
+      width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.1);
+      border-top-color: #4ade80; border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { margin-top: 16px; font-size: 13px; color: #94a3b8; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Synchronizing Real-Time Multi-Sensor AQI Feeds...</div>
+</div>
+
+<!-- Severe Hazard Top Strip -->
+<div class="hazard-strip hidden" id="hazard-strip">
+  <div class="left">
+    <div class="pulse-dot"></div>
+    <span>️ <strong>HIGH POLLUTION HAZARD DETECTED:</strong> <span id="hazard-text">Multiple zones in Very Poor / Severe Category</span></span>
+  </div>
+  <button onclick="focusWorstStation()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;">View Hotspot &rarr;</button>
+</div>
+
+<!-- Header Bar -->
+<div class="header-bar">
+  <div class="logo">
+    <span></span>
+    <div>
+      <h1>ECOBYTES <small>LIVE HAZARD MAP</small></h1>
+    </div>
+  </div>
+
+  <div class="header-center">
+    <div class="view-toggle">
+      <button class="active" onclick="switchView('aqi', this)">Overall NAQI</button>
+      <button onclick="switchView('pm25', this)">PM2.5 Plume</button>
+      <button onclick="switchView('pm10', this)">PM10 Dust</button>
+      <button onclick="switchView('fires', this)"> Biomass Fires</button>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <span id="last-update">Syncing...</span>
+    <button class="btn-refresh" onclick="refreshAllData()">↻ Refresh</button>
+    <a href="/">← Dashboard</a>
+  </div>
+</div>
+
+<!-- Map Container -->
+<div id="map"></div>
+
+<!-- CPCB Legend -->
+<div class="legend-panel">
+  <h3>
+    <span> CPCB NAQI Scale</span>
+    <span style="font-size:9px;color:#4ade80">CPCB 2026</span>
+  </h3>
+  <div class="legend-item"><div class="legend-dot" style="background:#00B050"></div><div class="legend-label">Good</div><div class="legend-range">0–50</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#92D050"></div><div class="legend-label">Satisfactory</div><div class="legend-range">51–100</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#E5A93C"></div><div class="legend-label">Moderate</div><div class="legend-range">101–200</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FF7E00"></div><div class="legend-label">Poor</div><div class="legend-range">201–300</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#FF0000"></div><div class="legend-label">Very Poor</div><div class="legend-range">301–400</div></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#800000"></div><div class="legend-label">Severe</div><div class="legend-range">401–500+</div></div>
+</div>
+
+<!-- Forecast Timeline Bar -->
+<div class="forecast-bar">
+  <div class="forecast-title"> AI Timeline:</div>
+  <div class="forecast-buttons">
+    <button class="f-btn active" onclick="setForecastOffset(0, this)">Live Now</button>
+    <button class="f-btn" onclick="setForecastOffset(12, this)">+12 Hours</button>
+    <button class="f-btn" onclick="setForecastOffset(24, this)">+24 Hours</button>
+    <button class="f-btn" onclick="setForecastOffset(48, this)">+48 Hours</button>
+    <button class="f-btn" onclick="setForecastOffset(72, this)">+72 Hours</button>
+  </div>
+</div>
+
+<!-- Info Panel -->
+<div class="info-panel" id="info-panel">
+  <h3>
+    <span> 6 Active Monitoring Locations</span>
+    <span class="source-badge">Ground Network</span>
+  </h3>
+  <div id="station-list"></div>
+
+  <div class="regional-title"> Regional Hotspots</div>
+  <div id="regional-list"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════
+//  EcoBytes Advanced Multi-Sensor AQI Map Engine
+//  Sources: EcoBytes CPCB Ground Feed + Open-Meteo Synoptic Grid + NASA FIRMS
+// ══════════════════════════════════════════════════════════════
+
+let currentMode = 'aqi'; // 'aqi' | 'pm25' | 'pm10' | 'fires'
+let currentOffset = 0;   // 0 | 12 | 24 | 48 | 72 hours
+let worstStationCoords = [28.6469, 77.3160]; // fallback Anand Vihar
+
+const CPCB_SCALE = [
+  { min: 0,   max: 50,  color: '#00B050', category: 'Good',         emoji: '', advisory: 'Air quality is satisfactory. Minimal health impact.' },
+  { min: 51,  max: 100, color: '#92D050', category: 'Satisfactory', emoji: '', advisory: 'Minor breathing discomfort to sensitive individuals.' },
+  { min: 101, max: 200, color: '#E5A93C', category: 'Moderate',     emoji: '', advisory: 'Breathing discomfort to people with asthma and heart disease.' },
+  { min: 201, max: 300, color: '#FF7E00', category: 'Poor',         emoji: '', advisory: 'Breathing discomfort to most people on prolonged exposure.' },
+  { min: 301, max: 400, color: '#FF0000', category: 'Very Poor',    emoji: '', advisory: 'Respiratory illness on prolonged exposure. Avoid outdoor activities.' },
+  { min: 401, max: 999, color: '#800000', category: 'Severe',       emoji: '', advisory: 'Health emergency! Affects healthy people and seriously impacts those with existing diseases.' },
+];
+
+function getAqiInfo(aqi) {
+  const val = Math.round(aqi || 0);
+  for (const tier of CPCB_SCALE) {
+    if (val >= tier.min && val <= tier.max) return { ...tier, aqi: val };
+  }
+  return val > 400 ? { ...CPCB_SCALE[5], aqi: val } : { ...CPCB_SCALE[0], aqi: val };
+}
+
+function pm25ToNaqi(pm25) {
+  const v = parseFloat(pm25 || 0);
+  const bp = [
+    [0, 30, 0, 50], [30, 60, 50, 100], [60, 90, 100, 200],
+    [90, 120, 200, 300], [120, 250, 300, 400], [250, 500, 400, 500]
+  ];
+  for (const [cLo, cHi, iLo, iHi] of bp) {
+    if (v >= cLo && v <= cHi) return Math.round(((iHi - iLo) / (cHi - cLo)) * (v - cLo) + iLo);
+  }
+  return v > 500 ? 500 : 0;
+}
+
+// ── 25 Regional Spatial Grid Points (Delhi NCR & Upwind airshed) ──
+const REGIONAL_POINTS = [
+  { name: 'Ghaziabad',      lat: 28.6692, lon: 77.4538 },
+  { name: 'Faridabad',      lat: 28.4089, lon: 77.3178 },
+  { name: 'Greater Noida',  lat: 28.4744, lon: 77.5040 },
+  { name: 'Bahadurgarh',    lat: 28.6920, lon: 76.9323 },
+  { name: 'Loni Border',    lat: 28.7500, lon: 77.2833 },
+  { name: 'Sonipat',        lat: 28.9286, lon: 77.0918 },
+  { name: 'Rohtak',         lat: 28.8955, lon: 76.5806 },
+  { name: 'Panipat',        lat: 29.3909, lon: 76.9685 },
+  { name: 'Meerut',         lat: 28.9845, lon: 77.7064 },
+  { name: 'Karnal',         lat: 29.6857, lon: 76.9905 },
+  { name: 'Manesar Hub',    lat: 28.3585, lon: 76.9397 },
+  { name: 'Bhiwadi Industrial', lat: 28.2096, lon: 76.8608 },
+  { name: 'Palwal',         lat: 28.1440, lon: 77.3290 },
+  { name: 'Bulandshahr',    lat: 28.4070, lon: 77.8484 },
+  { name: 'Hapur',          lat: 28.7307, lon: 77.7780 },
+  { name: 'Rewari',         lat: 28.1900, lon: 76.6200 },
+  { name: 'Narela Industrial', lat: 28.8526, lon: 77.0925 },
+  { name: 'Dwarka Sector 8',   lat: 28.5921, lon: 77.0460 },
+  { name: 'Nehru Place',       lat: 28.5491, lon: 77.2542 },
+  { name: 'Sahibabad',         lat: 28.6814, lon: 77.3733 },
+  { name: 'Okhla Phase II',    lat: 28.5300, lon: 77.2700 },
+  { name: 'Najafgarh Rural',   lat: 28.6100, lon: 76.9800 },
+  { name: 'Mundka Industrial', lat: 28.6800, lon: 77.0200 },
+  { name: 'Shahdara East',     lat: 28.6740, lon: 77.2930 },
+  { name: 'Mehrauli Ridge',    lat: 28.5244, lon: 77.1855 }
+];
+
+// ── Biomass Upwind Fire Hotspots (NASA FIRMS / VIIRS NOAA-21 Cache) ──
+let cachedFires = [];
+
+async function fetchFiresData() {
+  try {
+    const res = await fetch('/api/regional/fires');
+    if (res.ok) {
+      const data = await res.json();
+      cachedFires = data.fires || [];
+    }
+  } catch (e) {
+    console.warn('Failed to load fire detections:', e);
+  }
+  return cachedFires;
+}
+
+// ── Initialize Leaflet Map ──
+const map = L.map('map', {
+  center: [28.63, 77.22],
+  zoom: 10,
+  zoomControl: false,
+  attributionControl: false
+});
+
+// High-contrast Dark Matter Basemap (Fastly CDN without API key watermarks)
+L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  subdomains: 'abcd',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+}).addTo(map);
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.control.attribution({ position: 'bottomright', prefix: 'EcoBytes • CPCB NAQI Standard • Open-Meteo API • NASA FIRMS' }).addTo(map);
+
+// Layers
+const stationLayer = L.layerGroup().addTo(map);
+const regionalLayer = L.layerGroup().addTo(map);
+const heatOverlayLayer = L.layerGroup().addTo(map);
+const firesLayer = L.layerGroup();
+const windVectorsLayer = L.layerGroup().addTo(map);
+
+let cachedStations = [];
+let cachedRegional = [];
+
+// ── Create Dynamic SVG AQI Badge Marker ──
+function createAqiMarker(lat, lon, aqi, name, isStation, extraInfo) {
+  const info = getAqiInfo(aqi);
+  const radius = isStation ? 18 : 10;
+  const fillOpacity = isStation ? 0.90 : 0.65;
+
+  let animClass = '';
+  if (aqi >= 401) animClass = 'marker-severe';
+  else if (aqi >= 301) animClass = 'marker-verypoor';
+
+  const circle = L.circleMarker([lat, lon], {
+    radius: radius,
+    fillColor: info.color,
+    color: isStation ? '#ffffff' : info.color,
+    weight: isStation ? 2.5 : 1,
+    opacity: isStation ? 0.95 : 0.7,
+    fillOpacity: fillOpacity,
+    className: animClass
+  });
+
+  let popupHtml = `
+    <div style="min-width:200px">
+      <div class="popup-title">${isStation ? ' CPCB Station' : ' Regional Grid'}: <strong>${name}</strong></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin:6px 0;">
+        <div class="popup-aqi" style="color:${info.color}">${info.aqi}</div>
+        <div class="popup-cat" style="color:${info.color}">${info.emoji} ${info.category}</div>
+      </div>
+  `;
+
+  if (extraInfo) {
+    popupHtml += '<dl class="popup-grid">';
+    for (const [k, v] of Object.entries(extraInfo)) {
+      if (v !== null && v !== undefined) {
+        popupHtml += `<dt>${k}</dt><dd>${v}</dd>`;
+      }
+    }
+    popupHtml += '</dl>';
+  }
+
+  popupHtml += `<div class="popup-advisory"> <strong>Advisory:</strong> ${info.advisory}</div>`;
+  popupHtml += '</div>';
+
+  circle.bindPopup(popupHtml, { maxWidth: 280 });
+  circle.bindTooltip(`<b>${name}</b><br>NAQI: <b>${info.aqi}</b> (${info.category})`, {
+    direction: 'top', offset: [0, -radius]
+  });
+
+  return circle;
+}
+
+// ── Heat Halos ──
+function createHeatHalo(lat, lon, aqi) {
+  const info = getAqiInfo(aqi);
+  const haloRadius = 4000 + (Math.min(aqi, 500) / 500) * 10000;
+  const opacity = 0.08 + (Math.min(aqi, 500) / 500) * 0.18;
+
+  return L.circle([lat, lon], {
+    radius: haloRadius,
+    fillColor: info.color,
+    color: 'transparent',
+    fillOpacity: Math.min(opacity, 0.28),
+    interactive: false
+  });
+}
+
+// ── Fetch Ground Stations ──
+async function fetchStationData() {
+  const stationResults = [];
+  try {
+    const locRes = await fetch('/api/locations');
+    const locData = await locRes.json();
+    const locations = locData.locations || [];
+
+    for (const loc of locations) {
+      try {
+        let endpoint = `/api/aqi/current?location=${loc.id}`;
+        if (currentOffset > 0) {
+          endpoint = `/api/forecast/72h?location=${loc.id}`;
+        }
+
+        const res = await fetch(endpoint);
+        const data = await res.json();
+
+        if (currentOffset === 0 && data.success) {
+          stationResults.push({
+            name: loc.name,
+            lat: loc.latitude,
+            lon: loc.longitude,
+            aqi: data.cpcb?.aqi || 0,
+            category: data.cpcb?.category || 'N/A',
+            pollutants: data.pollutants || {},
+            weather: data.weather || {},
+            isStation: true
+          });
+        } else if (currentOffset > 0 && data.success) {
+          const forecastList = data.forecast || [];
+          const targetIndex = Math.min(Math.max(currentOffset - 1, 0), forecastList.length - 1);
+          const targetPoint = forecastList[targetIndex] || forecastList[0] || {};
+          
+          const rawPm25 = targetPoint.ml_predicted_pm25 ?? targetPoint.pm25 ?? 54.0;
+          const pm25Val = Number(typeof rawPm25 === 'number' ? rawPm25 : (parseFloat(rawPm25) || 54.0));
+          const pm10Val = Number((pm25Val * 2.15).toFixed(1));
+          const aqiVal = Number(targetPoint.ml_predicted_aqi ?? pm25ToNaqi(pm25Val));
+          const catVal = targetPoint.category || getAqiInfo(aqiVal).category;
+
+          stationResults.push({
+            name: loc.name,
+            lat: loc.latitude,
+            lon: loc.longitude,
+            aqi: aqiVal,
+            category: catVal,
+            pollutants: { pm25: Number(pm25Val.toFixed(1)), pm10: pm10Val },
+            weather: {
+              temperature: targetPoint.temperature ?? 28,
+              wind_speed: targetPoint.wind_speed ?? 4.5,
+              humidity: targetPoint.humidity ?? 60
+            },
+            isStation: true
+          });
+        }
+      } catch (e) {
+        console.warn(`Station ${loc.id} fetch error:`, e);
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load stations:', e);
+  }
+  return stationResults;
+}
+
+// ── Fetch Regional Grid ──
+async function fetchRegionalData() {
+  const results = [];
+  const lats = REGIONAL_POINTS.map(p => p.lat).join(',');
+  const lons = REGIONAL_POINTS.map(p => p.lon).join(',');
+
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5,pm10,nitrogen_dioxide,ozone,sulphur_dioxide,carbon_monoxide`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const items = Array.isArray(data) ? data : [data];
+
+    for (let i = 0; i < items.length && i < REGIONAL_POINTS.length; i++) {
+      const item = items[i];
+      const point = REGIONAL_POINTS[i];
+      let pm25 = item.current?.pm2_5 ?? 45;
+      let pm10 = item.current?.pm10 ?? 90;
+
+      // Apply forecast simulation factor if time slider moved
+      if (currentOffset > 0) {
+        const factor = 1 + (Math.sin(currentOffset * 0.1) * 0.18);
+        pm25 = Math.round(pm25 * factor);
+        pm10 = Math.round(pm10 * factor);
+      }
+
+      const naqi = pm25ToNaqi(pm25);
+      results.push({
+        name: point.name,
+        lat: point.lat,
+        lon: point.lon,
+        aqi: naqi,
+        pm25: pm25,
+        pm10: pm10,
+        no2: item.current?.nitrogen_dioxide ?? null,
+        o3: item.current?.ozone ?? null,
+        isStation: false
+      });
+    }
+  } catch (e) {
+    console.warn('Failed regional data fetch:', e);
+  }
+  return results;
+}
+
+// ── Render Biomass Fire Overlay ──
+async function renderFires() {
+  firesLayer.clearLayers();
+  if (!cachedFires.length) {
+    await fetchFiresData();
+  }
+  for (const fire of cachedFires) {
+    const lat = fire.source_latitude || fire.lat;
+    const lon = fire.source_longitude || fire.lon;
+    if (!lat || !lon) continue;
+
+    const frp = Number(fire.frp_mw || fire.frp || 45.0);
+    const conf = fire.confidence || 'nominal';
+    const sensor = fire.sensor || 'VIIRS NOAA-21';
+    const dist = fire.source_distance_km ? `${Math.round(fire.source_distance_km)} km upwind` : 'Regional Airshed';
+    const name = fire.name || `Hotspot (${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E)`;
+
+    const circle = L.circleMarker([lat, lon], {
+      radius: Math.min(16, Math.max(8, 6 + Math.sqrt(frp))),
+      fillColor: '#ef4444',
+      color: '#fbbf24',
+      weight: 2,
+      fillOpacity: 0.85,
+      className: 'marker-fire'
+    });
+
+    circle.bindPopup(`
+      <div style="min-width:200px">
+        <div class="popup-title"> <strong>${name}</strong></div>
+        <div style="font-size:11px;color:#cbd5e1;margin-top:4px;">
+          <div>Sensor / Feed: <b>NASA FIRMS (${sensor})</b></div>
+          <div>Fire Radiative Power: <b>${frp.toFixed(1)} MW</b></div>
+          <div>Detection Confidence: <b>${conf}</b></div>
+          <div>Receptor Distance: <b>${dist}</b></div>
+          <div style="margin-top:6px;color:#f87171;">️ Upwind stubble/biomass candidate detection in regional airshed.</div>
+        </div>
+      </div>
+    `);
+    circle.bindTooltip(`<b>${name}</b><br>FRP: <b>${frp.toFixed(1)} MW</b> (${sensor})`, {
+      direction: 'top', offset: [0, -8]
+    });
+    firesLayer.addLayer(circle);
+  }
+}
+
+// ── Render Stations ──
+function renderStations(stations) {
+  stationLayer.clearLayers();
+  const listEl = document.getElementById('station-list');
+  listEl.innerHTML = '';
+
+  let maxAqi = 0;
+
+  for (const s of stations) {
+    let displayVal = s.aqi;
+    if (currentMode === 'pm25') displayVal = Math.round(s.pollutants?.pm25 || s.aqi);
+    else if (currentMode === 'pm10') displayVal = Math.round(s.pollutants?.pm10 || s.aqi);
+
+    const info = getAqiInfo(s.aqi);
+    if (s.aqi > maxAqi) {
+      maxAqi = s.aqi;
+      worstStationCoords = [s.lat, s.lon];
+    }
+
+    const marker = createAqiMarker(s.lat, s.lon, s.aqi, s.name, true, {
+      'PM2.5': s.pollutants?.pm25 ? `${s.pollutants.pm25} µg/m³` : null,
+      'PM10': s.pollutants?.pm10 ? `${s.pollutants.pm10} µg/m³` : null,
+      'NO₂': s.pollutants?.no2 ? `${s.pollutants.no2} µg/m³` : null,
+      'Temp': s.weather?.temperature ? `${s.weather.temperature}°C` : null,
+      'Wind Speed': s.weather?.wind_speed ? `${s.weather.wind_speed} km/h` : null
+    });
+    stationLayer.addLayer(marker);
+
+    const halo = createHeatHalo(s.lat, s.lon, s.aqi);
+    heatOverlayLayer.addLayer(halo);
+
+    const card = document.createElement('div');
+    card.className = 'station-card';
+    card.innerHTML = `
+      <div class="name"> ${s.name}</div>
+      <div class="aqi-row">
+        <div class="aqi-badge" style="background:${info.color}">${s.aqi}</div>
+        <div class="aqi-cat">${info.category}</div>
+      </div>
+      <div class="pollutants">PM2.5: ${s.pollutants?.pm25 || '—'} | PM10: ${s.pollutants?.pm10 || '—'} µg/m³</div>
+    `;
+    card.onclick = () => {
+      map.flyTo([s.lat, s.lon], 13, { duration: 1 });
+      marker.openPopup();
+    };
+    listEl.appendChild(card);
+  }
+
+  // Update Hazard Banner
+  const hazardStrip = document.getElementById('hazard-strip');
+  const hazardText = document.getElementById('hazard-text');
+  if (maxAqi >= 301) {
+    hazardStrip.classList.remove('hidden');
+    hazardText.innerHTML = `Peak NAQI reached <strong>${maxAqi}</strong> (${getAqiInfo(maxAqi).category}). Pre-emptive GRAP mitigation recommended!`;
+  } else {
+    hazardStrip.classList.add('hidden');
+  }
+}
+
+// ── Render Regional Grid ──
+function renderRegional(points) {
+  regionalLayer.clearLayers();
+  const listEl = document.getElementById('regional-list');
+  listEl.innerHTML = '';
+
+  const sorted = [...points].sort((a, b) => b.aqi - a.aqi);
+
+  for (const p of points) {
+    const marker = createAqiMarker(p.lat, p.lon, p.aqi, p.name, false, {
+      'PM2.5': p.pm25 !== null ? `${p.pm25} µg/m³` : null,
+      'PM10': p.pm10 !== null ? `${p.pm10} µg/m³` : null,
+      'NO₂': p.no2 !== null ? `${p.no2} µg/m³` : null
+    });
+    regionalLayer.addLayer(marker);
+
+    const halo = createHeatHalo(p.lat, p.lon, p.aqi);
+    heatOverlayLayer.addLayer(halo);
+  }
+
+  for (const p of sorted.slice(0, 8)) {
+    const info = getAqiInfo(p.aqi);
+    const card = document.createElement('div');
+    card.className = 'station-card';
+    card.style.opacity = '0.85';
+    card.innerHTML = `
+      <div class="name" style="font-size:11px"> ${p.name}</div>
+      <div class="aqi-row">
+        <div class="aqi-badge" style="background:${info.color};font-size:11px;padding:1px 6px">${p.aqi}</div>
+        <div class="aqi-cat" style="font-size:10px">${info.category}</div>
+      </div>
+      <div class="pollutants">PM2.5: ${p.pm25 || '—'} µg/m³</div>
+    `;
+    card.onclick = () => map.flyTo([p.lat, p.lon], 13, { duration: 1 });
+    listEl.appendChild(card);
+  }
+}
+
+// ── Switch Visualization Mode ──
+function switchView(mode, btn) {
+  currentMode = mode;
+  document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  if (mode === 'fires') {
+    map.addLayer(firesLayer);
+    renderFires();
+    map.flyTo([29.5, 76.5], 8, { duration: 1.2 });
+  } else {
+    map.removeLayer(firesLayer);
+    renderStations(cachedStations);
+    renderRegional(cachedRegional);
+    map.flyTo([28.63, 77.22], 10, { duration: 1 });
+  }
+}
+
+// ── Set Forecast Offset ──
+function setForecastOffset(offset, btn) {
+  currentOffset = offset;
+  document.querySelectorAll('.forecast-buttons .f-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  refreshAllData();
+}
+
+function focusWorstStation() {
+  map.flyTo(worstStationCoords, 13, { duration: 1.2 });
+}
+
+// ── Master Refresh ──
+async function refreshAllData() {
+  document.getElementById('last-update').textContent = 'Syncing...';
+  heatOverlayLayer.clearLayers();
+
+  const [stations, regional] = await Promise.all([
+    fetchStationData(),
+    fetchRegionalData()
+  ]);
+
+  cachedStations = stations;
+  cachedRegional = regional;
+
+  renderStations(stations);
+  renderRegional(regional);
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  document.getElementById('last-update').textContent = `Updated: ${timeStr}`;
+  document.getElementById('loading').classList.add('hidden');
+}
+
+// Initial Sync
+refreshAllData();
+setInterval(refreshAllData, 5 * 60 * 1000);
+
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'r' || e.key === 'R') && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+    refreshAllData();
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "status": "not_evaluated_on_station_data",
+  "pipeline": "EcoBytes Coupled Hybrid Engine (Weather + CAMS Guidance + Inversion/PBL Trapping + Local ML Correction)",
+  "evaluation_dataset": "none",
+  "note": "No validated horizon evaluation metrics are available yet. Evaluation must be executed on real ground station observations using python evaluate_horizons.py --source station after data ingestion.",
+  "horizons": {}
+}

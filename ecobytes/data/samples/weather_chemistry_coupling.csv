@@ -1,0 +1,4 @@
+timestamp_utc,pm25_ug_m3,pm10_ug_m3,no2_ug_m3,o3_ug_m3,temperature_c,relative_humidity_pct,wind_speed_m_s,precipitation_mm,meteorological_boundary_layer_height_m,effective_boundary_layer_height_m,daylight_proxy,temperature_reaction_factor,humidity_aerosol_growth_factor,wet_scavenging_index,meteorological_dilution_index,weather_to_chemistry_index,ozone_formation_potential,aerosol_feedback_index,coupled_pm25_index,coupled_ozone_index,coupled_stability_score,coupling_iterations
+2026-09-20T11:00,75.1,128.2,10.8,204.0,32.2,49.0,9.6,0.1,800.0,619.461,0.38268,0.57717,0.098,0.03902,0.79,0.45589,0.04698,0.53953,0.48526,0.50654,0.24046,4
+2026-09-20T12:00,76.3,125.5,14.4,185.0,31.8,51.0,10.0,0.1,800.0,615.24,0.13053,0.56688,0.1004,0.03902,0.79,0.45372,0.01643,0.55908,0.49194,0.44235,0.24408,4
+2026-09-20T13:00,77.6,122.3,18.1,159.0,30.2,63.0,3.7,0.0,800.0,597.366,0.0,0.5275,0.1676,0.0,0.49438,0.54175,0.0,0.64182,0.54333,0.371,0.2894,4

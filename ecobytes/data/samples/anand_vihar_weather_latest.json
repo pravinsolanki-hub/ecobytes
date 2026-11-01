@@ -1,0 +1,69 @@
+{
+  "current": {
+    "time": "2026-09-24T18:00",
+    "interval": 900,
+    "temperature_2m": 27.7,
+    "relative_humidity_2m": 73,
+    "dew_point_2m": 22.4,
+    "apparent_temperature": 31.6,
+    "pressure_msl": 1007.9,
+    "surface_pressure": 984.8,
+    "wind_speed_10m": 2.44,
+    "wind_direction_10m": 121,
+    "wind_gusts_10m": 5.4,
+    "precipitation": 0.0,
+    "rain": 0.0,
+    "cloud_cover": 0,
+    "visibility": 8320.0,
+    "shortwave_radiation": 0.0,
+    "vapour_pressure_deficit": 1.01,
+    "weather_code": 0
+  },
+  "hourly": {
+    "time": [
+      "2026-09-24T18:00",
+      "2026-09-24T19:00",
+      "2026-09-24T20:00"
+    ],
+    "boundary_layer_height": [
+      470.0,
+      435.0,
+      440.0
+    ],
+    "temperature_2m": [
+      27.7,
+      27.1,
+      26.4
+    ],
+    "relative_humidity_2m": [
+      73,
+      76,
+      79
+    ],
+    "wind_speed_10m": [
+      2.44,
+      2.39,
+      2.35
+    ],
+    "wind_direction_10m": [
+      121,
+      119,
+      119
+    ],
+    "precipitation": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "shortwave_radiation": [
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "source": "Open-Meteo",
+  "location": "Anand Vihar, Delhi",
+  "latitude": 28.6468,
+  "longitude": 77.316,
+  "fetched_at_utc": "2026-09-24T18:07:38.626066+00:00"
+}

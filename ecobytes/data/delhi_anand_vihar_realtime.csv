@@ -1,0 +1,5 @@
+collected_at_utc,measurement_time_utc,location_id,station,provider,latitude,longitude,pm25_ug_m3,pm10_ug_m3,no2_ug_m3,so2_ug_m3,o3_ug_m3,co_ug_m3,temperature_c,relative_humidity_pct,wind_speed_m_s,precipitation_mm,pressure_hpa
+2026-09-20T11:59:34.454594+00:00,2026-09-20T11:00,235,"Anand Vihar, New Delhi - DPCC",Open-Meteo (Anand Vihar DPCC Calibrated),28.6468,77.316,75.1,128.2,10.8,26.3,204.0,385.0,32.2,49.0,9.6,0.1,1010.3
+2026-09-20T12:00:26.780910+00:00,2026-09-20T12:00,235,"Anand Vihar, New Delhi - DPCC",Open-Meteo (Anand Vihar DPCC Calibrated),28.6468,77.316,76.3,125.5,14.4,27.0,185.0,407.0,31.8,51.0,10.0,0.1,1010.4
+2026-09-20T13:58:14.573118+00:00,2026-09-20T13:00,235,"Anand Vihar, New Delhi - DPCC",Open-Meteo (Anand Vihar DPCC Calibrated),28.6468,77.316,77.6,122.3,18.1,27.2,159.0,479.0,30.2,63.0,3.7,0.0,1011.3
+2026-09-25T01:08:55.350842+00:00,2026-09-25T01:00,235,"Anand Vihar, New Delhi - DPCC",Open-Meteo (Anand Vihar DPCC Calibrated),28.6468,77.316,36.3,89.9,26.7,29.5,32.0,531.0,24.6,85.0,6.6,0.0,1007.8

@@ -1,0 +1,8 @@
+collected_at_utc,receptor,active_fire_count,upwind_fire_count,total_frp_mw,upwind_frp_mw,weighted_regional_fire_impact,max_fire_impact_score,wind_speed_m_s,wind_direction_deg,boundary_layer_height_m
+2026-09-20T13:05:43.673779+00:00,"Anand Vihar, Delhi",6,6,246.8,246.8,0.05011,0.147523,3.9,16.0,240.0
+2026-09-20T13:15:48.691987+00:00,"Anand Vihar, Delhi",6,6,246.8,246.8,0.022299,0.06956,3.1,21.0,
+2026-09-20T13:44:07.868725+00:00,"Anand Vihar, Delhi",6,6,246.8,246.8,0.023975,0.072147,4.0,18.0,
+2026-09-20T13:58:31.360723+00:00,"Anand Vihar, Delhi",6,5,246.8,228.2,0.021353,0.067729,3.7,23.0,
+2026-09-20T13:59:08.912203+00:00,"Anand Vihar, Delhi",6,5,246.8,228.2,0.021353,0.067729,3.7,23.0,
+2026-09-20T14:14:09.803919+00:00,"Anand Vihar, Delhi",6,5,246.8,228.2,0.041835,0.133565,3.5,24.0,110.0
+2026-09-25T01:09:18.106075+00:00,"Anand Vihar, Delhi",6,0,246.8,0,0.0,0.0,6.6,123.0,495.0

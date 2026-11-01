@@ -1,0 +1,4 @@
+timestamp_utc,collected_at_utc,location,latitude,longitude,temperature_2m_c,relative_humidity_2m_pct,dew_point_2m_c,apparent_temperature_c,pressure_msl_hpa,surface_pressure_hpa,wind_speed_10m_m_s,wind_direction_10m_deg,wind_gusts_10m_m_s,precipitation_mm,rain_mm,cloud_cover_pct,visibility_m,shortwave_radiation_w_m2,vapour_pressure_deficit_kpa,weather_code,boundary_layer_height_m
+2026-09-20T12:45,2026-09-20T12:56:35.286086+00:00,"Anand Vihar, Delhi",28.6468,77.316,30.9,56.0,21.1,34.5,1010.9,987.9,1.48,12.0,4.2,0.0,0.0,22.0,10320.0,12.0,1.97,1,
+2026-09-20T13:15,2026-09-20T13:15:47.607674+00:00,"Anand Vihar, Delhi",28.6468,77.316,30.5,59.0,21.5,34.7,1011.1,988.1,0.85,21.0,3.6,0.0,0.0,13.0,10500.0,0.0,1.8,0,
+2026-09-24T18:00,2026-09-24T18:07:27.649526+00:00,"Anand Vihar, Delhi",28.6468,77.316,27.7,73.0,22.4,31.6,1007.9,984.8,2.44,121.0,5.4,0.0,0.0,0.0,8320.0,0.0,1.01,0,470.0

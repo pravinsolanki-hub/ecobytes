@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EcoBytes | Weather-Aware AQI & SMS Alert System (Delhi NCR)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=3.0" />
+  <!-- Chart.js for data visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="logo-icon"></div>
+        <div>
+          <h1 class="brand-title">EcoBytes <span class="badge-prototype">SIH Prototype</span></h1>
+          <p class="brand-sub">Weather-Aware Air Quality Forecasting • Delhi NCR, India</p>
+        </div>
+      </div>
+      
+      <div class="header-controls">
+        <div class="control-group">
+          <label for="location-select">6 Active Monitoring Locations:</label>
+          <select id="location-select" class="custom-select">
+            <option value="delhi-cp">Connaught Place (Central Delhi)</option>
+            <option value="delhi-anand-vihar">Anand Vihar (East Delhi - Dust Hub)</option>
+            <option value="delhi-igi">IGI Airport T3 (South-West)</option>
+            <option value="delhi-punjabi-bagh">Punjabi Bagh (West Delhi)</option>
+            <option value="delhi-noida">Sector 62 Noida (NCR East)</option>
+            <option value="delhi-gurugram">Cyber Hub Gurugram (NCR South)</option>
+          </select>
+        </div>
+        
+        <a href="/map.html" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid rgba(74,222,128,0.3); font-weight: 600;">
+          <span>️</span> Live Map
+        </a>
+
+        <button id="refresh-btn" class="btn btn-secondary">
+          <span class="refresh-icon"></span> Refresh
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Alert Banner (Shown if PM2.5 > 50 or PM10 > 120) -->
+  <section id="alert-banner" class="alert-banner hidden">
+    <div class="alert-content">
+      <span class="alert-pulse"></span>
+      <span class="alert-icon">️</span>
+      <div class="alert-text">
+        <strong id="alert-headline">SMS ALERT TRIGGERED:</strong>
+        <span id="alert-details">PM2.5 exceeded 50 ug/m³ threshold.</span>
+      </div>
+      <a href="#sms-section" class="alert-jump-link">View SMS Dispatch Log &rarr;</a>
+    </div>
+  </section>
+
+  <main class="main-container">
+
+    <!-- Hero Overview Grid -->
+    <div class="hero-grid">
+      <!-- CPCB NAQI Card -->
+      <div class="card card-aqi" id="aqi-card">
+        <div class="card-header-flex">
+          <span class="card-tag">Indian CPCB NAQI</span>
+          <span id="update-timestamp" class="timestamp">Updating...</span>
+        </div>
+        
+        <div class="aqi-display">
+          <div class="aqi-number-container">
+            <div id="aqi-value" class="aqi-value">--</div>
+            <div class="aqi-scale-max">/ 500</div>
+          </div>
+          <div class="aqi-meta">
+            <div id="aqi-category" class="aqi-category-pill">Calculating...</div>
+            <div class="dominant-pollutant">Primary Pollutant: <strong id="dominant-pollutant-name">PM2.5</strong></div>
+            <div class="epa-aqi-comparison" id="epa-aqi-comparison" style="font-size: 0.82rem; color: var(--text-muted); margin-top: 6px;">
+              Commercial / US EPA Index: <strong id="epa-aqi-val" style="color: var(--accent-amber);">--</strong> <span style="font-size: 0.72rem; opacity: 0.8;">(aqi.in / IQAir scale)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CPCB Gradient Bar -->
+        <div class="cpcb-gradient-track">
+          <div id="cpcb-indicator" class="cpcb-indicator" style="left: 20%;"></div>
+        </div>
+        <div class="cpcb-scale-labels">
+          <span>0 (Good)</span>
+          <span>100 (Satisfactory)</span>
+          <span>200 (Moderate)</span>
+          <span>300 (Poor)</span>
+          <span>400 (V.Poor)</span>
+          <span>500 (Severe)</span>
+        </div>
+
+        <div class="health-advisory-box">
+          <span class="advisory-title"> CPCB Health Advisory:</span>
+          <p id="health-advisory-text" class="advisory-text">Loading official recommendations...</p>
+        </div>
+      </div>
+
+      <!-- SMS Alert Rules & Status Card -->
+      <div class="card card-sms-status">
+        <div class="card-header-flex">
+          <span class="card-tag">Automated SMS Engine</span>
+          <span class="badge-status-online">● Active</span>
+        </div>
+        <h3 class="card-title">Delhi NCR Early-Warning Thresholds</h3>
+        <p class="card-desc">Automatic cellular alerts are dispatched to citizens and authorities when particulate levels breach CPCB health safety limits:</p>
+
+        <div class="threshold-watch-list">
+          <div class="threshold-item" id="threshold-pm25-box">
+            <div class="threshold-info">
+              <span class="threshold-label">PM2.5 Early Alert</span>
+              <span class="threshold-target">Limit: <strong>50 µg/m³</strong></span>
+            </div>
+            <div class="threshold-current">
+              Current: <strong id="current-pm25-val">--</strong> µg/m³
+              <span id="pm25-status-badge" class="badge-safe">Checking</span>
+            </div>
+          </div>
+
+          <div class="threshold-item" id="threshold-pm10-box">
+            <div class="threshold-info">
+              <span class="threshold-label">PM10 Moderate Alert</span>
+              <span class="threshold-target">Limit: <strong>120 µg/m³</strong></span>
+            </div>
+            <div class="threshold-current">
+              Current: <strong id="current-pm10-val">--</strong> µg/m³
+              <span id="pm10-status-badge" class="badge-safe">Checking</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sms-quick-subscribe">
+          <div class="subscribe-label-row">
+            <label for="subscribe-phone">Subscribe Mobile for Free Delhi AQI Alerts:</label>
+            <span id="subscribe-phone-badge" class="phone-digit-counter">10 Digits</span>
+          </div>
+          <div class="subscribe-input-group">
+            <span class="input-prefix-flag"> +91</span>
+            <input type="tel" id="subscribe-phone" maxlength="10" placeholder="Enter 10-digit mobile number" />
+            <button id="subscribe-btn" class="btn btn-primary">Subscribe SMS</button>
+          </div>
+          <span id="subscribe-status" class="subscribe-msg"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Machine Learning Model Training & Status Station -->
+    <section class="card card-ml-training" id="ml-training-section">
+      <div class="card-header-flex">
+        <div>
+          <span class="card-tag">Python AI/ML Engine • Live Training Station</span>
+          <h3 class="card-title">Weather-Aware Delhi NCR Regression Model</h3>
+          <p class="card-desc">Trained on the demonstration / synthetic training dataset across 6 Active Monitoring Locations with chronological holdout validation. Real CPCB field validation requires training and testing on operational CPCB/DPCC ground station observations.</p>
+        </div>
+        <div class="ml-action-buttons">
+          <button id="train-ml-btn" class="btn btn-primary">
+            <span class="train-icon"></span> Train Model Now
+          </button>
+          <button id="reseed-db-btn" class="btn btn-secondary" title="Regenerates 60 days of demonstration / synthetic training dataset across 6 Active Monitoring Locations">
+            <span></span> Reseed 60-Day DB
+          </button>
+        </div>
+      </div>
+
+      <!-- Training Progress Bar -->
+      <div id="training-progress-box" class="training-progress-box hidden">
+        <div class="progress-bar-wrap">
+          <div id="training-progress-bar" class="progress-bar-fill" style="width: 0%;"></div>
+        </div>
+        <div class="progress-status-text" id="progress-status-text">Training gradient regressor on demonstration / synthetic dataset...</div>
+      </div>
+
+      <!-- Real-time Model Metrics Grid -->
+      <div class="ml-metrics-grid">
+        <div class="ml-metric-box">
+          <span class="ml-metric-label">Training Dataset</span>
+          <div class="ml-metric-num"><span id="ml-samples-count">6,768</span> <small>hours</small></div>
+          <span class="ml-metric-sub">Demonstration / synthetic training dataset (6 Active Monitoring Locations)</span>
+        </div>
+
+        <div class="ml-metric-box">
+          <span class="ml-metric-label">Holdout Validation Score</span>
+          <div class="ml-metric-num text-success"><span id="ml-r2-val">0.987</span></div>
+          <span class="ml-metric-sub">R² = 0.987 on demonstration / synthetic dataset</span>
+        </div>
+
+        <div class="ml-metric-box">
+          <span class="ml-metric-label">Mean Absolute Error</span>
+          <div class="ml-metric-num"><span id="ml-mae-val">2.26</span> <small>µg/m³</small></div>
+          <span class="ml-metric-sub">Average PM2.5 delta</span>
+        </div>
+
+        <div class="ml-metric-box">
+          <span class="ml-metric-label">RMSE</span>
+          <div class="ml-metric-num"><span id="ml-rmse-val">2.69</span> <small>µg/m³</small></div>
+          <span class="ml-metric-sub">Root Mean Squared</span>
+        </div>
+
+        <div class="ml-metric-box">
+          <span class="ml-metric-label">Baseline Improvement</span>
+          <div class="ml-metric-num text-cyan"><span id="ml-improvement-val">+69.1%</span></div>
+          <span class="ml-metric-sub">vs Naive Persistence</span>
+        </div>
+      </div>
+
+      <!-- Learned Atmospheric Weights Breakdown -->
+      <div class="feature-weights-wrap">
+        <span class="feature-weights-title"> Learned Meteorological Weights (Feature Importance):</span>
+        <div class="feature-weights-list" id="feature-weights-list">
+          <span class="weight-pill negative"> Wind Speed (-0.38) [Disperses PM]</span>
+          <span class="weight-pill positive"> Humidity (+1.31) [Traps PM]</span>
+          <span class="weight-pill positive"> Diurnal Traffic (+7.98) [Peak Hours]</span>
+          <span class="weight-pill negative">️ Rain Scavenging (-1.37) [Washout]</span>
+          <span class="weight-pill positive">️ PM2.5 Lag (+7.78) [Inertia]</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 72-Hour Smog Episode Early Warning & Multi-Day Predictive Outlook Window -->
+    <section id="section-72h-warning" class="card card-72h-warning">
+      <div class="warning-72h-header">
+        <div class="warning-72h-title-group">
+          <div class="badge badge-pulse"> SIH 72H EARLY WARNING RADAR</div>
+          <h2 class="warning-72h-title">72-Hour Smog Episode Outlook &amp; GRAP Action Radar</h2>
+          <p class="warning-72h-subtitle">
+            Continuous multi-day predictive forecast powered by Open-Meteo atmospheric models &amp; EcoBytes Autoregressive Ridge ML Engine. Designed to alert municipal authorities and citizens up to 3 days ahead of severe winter air inversions.
+          </p>
+        </div>
+        <div class="warning-72h-actions">
+          <button id="btn-refresh-72h" class="btn btn-secondary btn-sm">
+            <span></span> Refresh Outlook
+          </button>
+          <button id="btn-dispatch-72h-warning" class="btn btn-emergency btn-sm">
+            <span></span> Push 72H Pre-Emptive SMS
+          </button>
+        </div>
+      </div>
+
+      <!-- Forecast Provenance & Data Audit Bar -->
+      <div class="forecast-audit-bar" id="forecast-audit-bar">
+        <div class="audit-tag">
+          <span>️</span> <strong>Forecast Provenance &amp; Verification:</strong>
+        </div>
+        <div class="audit-meta-group">
+          <span class="audit-badge" id="audit-history-badge"> History: 24h Real Observations</span>
+          <span class="audit-badge" id="audit-weather-badge">️ Weather: Open-Meteo GFS/ECMWF 72h</span>
+          <span class="audit-badge" id="audit-features-badge"> 31-Feature Coupled Physics Engine</span>
+          <span class="audit-badge" id="audit-inversion-badge">️ Surface Inversion Layer Tracking Active</span>
+        </div>
+      </div>
+
+      <!-- Critical Emergency Episode Banner (Dynamic) -->
+      <div id="smog-episode-banner" class="smog-emergency-banner" style="display: none;">
+        <div class="emergency-banner-icon">️</div>
+        <div class="emergency-banner-content">
+          <h4 id="emergency-banner-title">72-Hour Pre-Emptive Smog Warning</h4>
+          <p id="emergency-banner-desc">Analyzing 72-hour trajectory...</p>
+        </div>
+        <div class="emergency-banner-badge" id="emergency-banner-badge">GRAP STAGE III</div>
+      </div>
+
+      <!-- 3 Daily Multi-Horizon Breakdown Cards -->
+      <div class="days-summary-grid">
+        <!-- Day 1 (0-24h) -->
+        <div class="day-outlook-card" id="card-day1">
+          <div class="day-card-header">
+            <div>
+              <span class="day-badge">DAY 1 (0–24h)</span>
+              <h3 class="day-title" id="day1-title">Next 24 Hours</h3>
+              <span class="day-date" id="day1-date">--</span>
+            </div>
+            <div class="day-peak-aqi-wrap">
+              <span class="day-peak-label">Peak NAQI</span>
+              <span class="day-peak-val" id="day1-peak-aqi">--</span>
+            </div>
+          </div>
+          <div class="day-card-status">
+            <span class="status-pill" id="day1-category-pill">Loading...</span>
+            <span class="grap-pill" id="day1-grap-pill">GRAP --</span>
+          </div>
+          <div class="day-card-metrics">
+            <div class="day-submetric">
+              <span>Peak PM2.5:</span>
+              <strong id="day1-peak-pm25">-- µg/m³</strong>
+            </div>
+            <div class="day-submetric">
+              <span>24h Average:</span>
+              <strong id="day1-avg-aqi">NAQI --</strong>
+            </div>
+          </div>
+          <div class="day-driver-box">
+            <span class="driver-label">️ Atmospheric Driver:</span>
+            <span class="driver-text" id="day1-driver">Analyzing meteorological conditions...</span>
+          </div>
+          <div class="day-grap-action">
+            <span class="grap-action-label"> Recommended GRAP Protocol:</span>
+            <span class="grap-action-text" id="day1-action">--</span>
+          </div>
+        </div>
+
+        <!-- Day 2 (24-48h) -->
+        <div class="day-outlook-card" id="card-day2">
+          <div class="day-card-header">
+            <div>
+              <span class="day-badge">DAY 2 (24–48h)</span>
+              <h3 class="day-title" id="day2-title">24–48h Horizon</h3>
+              <span class="day-date" id="day2-date">--</span>
+            </div>
+            <div class="day-peak-aqi-wrap">
+              <span class="day-peak-label">Peak NAQI</span>
+              <span class="day-peak-val" id="day2-peak-aqi">--</span>
+            </div>
+          </div>
+          <div class="day-card-status">
+            <span class="status-pill" id="day2-category-pill">Loading...</span>
+            <span class="grap-pill" id="day2-grap-pill">GRAP --</span>
+          </div>
+          <div class="day-card-metrics">
+            <div class="day-submetric">
+              <span>Peak PM2.5:</span>
+              <strong id="day2-peak-pm25">-- µg/m³</strong>
+            </div>
+            <div class="day-submetric">
+              <span>24h Average:</span>
+              <strong id="day2-avg-aqi">NAQI --</strong>
+            </div>
+          </div>
+          <div class="day-driver-box">
+            <span class="driver-label">️ Atmospheric Driver:</span>
+            <span class="driver-text" id="day2-driver">Analyzing meteorological conditions...</span>
+          </div>
+          <div class="day-grap-action">
+            <span class="grap-action-label"> Recommended GRAP Protocol:</span>
+            <span class="grap-action-text" id="day2-action">--</span>
+          </div>
+        </div>
+
+        <!-- Day 3 (48-72h) -->
+        <div class="day-outlook-card" id="card-day3">
+          <div class="day-card-header">
+            <div>
+              <span class="day-badge highlight-horizon">DAY 3 (48–72h)</span>
+              <h3 class="day-title" id="day3-title">48–72h Critical Horizon</h3>
+              <span class="day-date" id="day3-date">--</span>
+            </div>
+            <div class="day-peak-aqi-wrap">
+              <span class="day-peak-label">Peak NAQI</span>
+              <span class="day-peak-val" id="day3-peak-aqi">--</span>
+            </div>
+          </div>
+          <div class="day-card-status">
+            <span class="status-pill" id="day3-category-pill">Loading...</span>
+            <span class="grap-pill" id="day3-grap-pill">GRAP --</span>
+          </div>
+          <div class="day-card-metrics">
+            <div class="day-submetric">
+              <span>Peak PM2.5:</span>
+              <strong id="day3-peak-pm25">-- µg/m³</strong>
+            </div>
+            <div class="day-submetric">
+              <span>24h Average:</span>
+              <strong id="day3-avg-aqi">NAQI --</strong>
+            </div>
+          </div>
+          <div class="day-driver-box">
+            <span class="driver-label">️ Atmospheric Driver:</span>
+            <span class="driver-text" id="day3-driver">Analyzing meteorological conditions...</span>
+          </div>
+          <div class="day-grap-action">
+            <span class="grap-action-label"> Recommended GRAP Protocol:</span>
+            <span class="grap-action-text" id="day3-action">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Continuous 72-Hour Timeline Chart Container -->
+      <div class="chart-72h-wrapper">
+        <div class="chart-72h-header">
+          <div>
+            <h4 class="chart-72h-title"> 72-Hour Continuous Hourly PM2.5 Trajectory &amp; CPCB NAQI Risk Limits</h4>
+            <span class="chart-72h-sub">Autoregressively projected with hourly temperature, relative humidity, wind speed, and rain washout effects</span>
+          </div>
+          <div class="chart-72h-legend">
+            <span class="legend-item"><span class="legend-dot" style="background:#00d2ff;"></span> ML Predicted PM2.5 (µg/m³)</span>
+            <span class="legend-item"><span class="legend-line" style="background:#ff4d4d;"></span> CPCB Severe Risk (250 µg/m³)</span>
+            <span class="legend-item"><span class="legend-line" style="background:#ffa500;"></span> CPCB Poor Threshold (90 µg/m³)</span>
+          </div>
+        </div>
+        <div class="chart-72h-canvas-box">
+          <canvas id="forecast72Chart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pollutant Breakdown & Weather Grid -->
+    <div class="metrics-grid">
+      <!-- Pollutants Grid -->
+      <div class="card">
+        <h3 class="card-section-title"> Key Ambient Pollutants (CPCB Breakpoints)</h3>
+        <div class="pollutants-subgrid">
+          <div class="metric-card">
+            <div class="metric-title">PM2.5 (Fine Particulate)</div>
+            <div class="metric-value-wrap">
+              <span id="val-pm25" class="metric-number">--</span>
+              <span class="metric-unit">µg/m³</span>
+            </div>
+            <div class="metric-sub">CPCB Sub-Index: <strong id="sub-pm25">--</strong></div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-title">PM10 (Coarse Dust)</div>
+            <div class="metric-value-wrap">
+              <span id="val-pm10" class="metric-number">--</span>
+              <span class="metric-unit">µg/m³</span>
+            </div>
+            <div class="metric-sub">CPCB Sub-Index: <strong id="sub-pm10">--</strong></div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-title">NO₂ (Nitrogen Dioxide)</div>
+            <div class="metric-value-wrap">
+              <span id="val-no2" class="metric-number">--</span>
+              <span class="metric-unit">µg/m³</span>
+            </div>
+            <div class="metric-sub">CPCB Sub-Index: <strong id="sub-no2">--</strong></div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-title">O₃ (Ground Ozone)</div>
+            <div class="metric-value-wrap">
+              <span id="val-o3" class="metric-number">--</span>
+              <span class="metric-unit">µg/m³</span>
+            </div>
+            <div class="metric-sub">CPCB Sub-Index: <strong id="sub-o3">--</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Meteorological Drivers Grid -->
+      <div class="card">
+        <div class="card-header-flex">
+          <h3 class="card-section-title">️ Meteorological Dispersion Drivers</h3>
+          <span class="badge-status-online" id="weather-sync-badge">● Live Open-Meteo Sync (<5ms)</span>
+        </div>
+        <div class="weather-subgrid">
+          <div class="weather-pill">
+            <span class="w-icon">️</span>
+            <div>
+              <div class="w-label">Temperature</div>
+              <div class="w-value"><span id="w-temp">--</span> °C</div>
+            </div>
+          </div>
+
+          <div class="weather-pill">
+            <span class="w-icon"></span>
+            <div>
+              <div class="w-label">Relative Humidity</div>
+              <div class="w-value"><span id="w-humidity">--</span> %</div>
+            </div>
+          </div>
+
+          <div class="weather-pill">
+            <span class="w-icon"></span>
+            <div>
+              <div class="w-label">Wind Velocity</div>
+              <div class="w-value"><span id="w-wind">--</span> km/h</div>
+            </div>
+          </div>
+
+          <div class="weather-pill">
+            <span class="w-icon"></span>
+            <div>
+              <div class="w-label">Wind Direction</div>
+              <div class="w-value"><span id="w-dir">--</span>° <small id="w-cardinal">(WNW)</small></div>
+            </div>
+          </div>
+
+          <div class="weather-pill">
+            <span class="w-icon">️</span>
+            <div>
+              <div class="w-label">Atmospheric Pressure</div>
+              <div class="w-value"><span id="w-pressure">--</span> hPa</div>
+            </div>
+          </div>
+
+          <div class="weather-pill">
+            <span class="w-icon">️</span>
+            <div>
+              <div class="w-label">Precipitation</div>
+              <div class="w-value"><span id="w-rain">--</span> mm</div>
+            </div>
+          </div>
+        </div>
+        <div class="dispersion-footer-pill">
+          <span>️ <strong>Boundary Layer Dispersion:</strong></span>
+          <span id="w-dispersion-badge" class="badge-safe">Favorable Ventilation</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Physical Diagnostics & Atmospheric Dynamics HUD -->
+    <section class="card card-phys-diag" id="phys-diagnostics-section">
+      <div class="card-header-flex">
+        <div>
+          <span class="card-tag">Reduced-Order Physical Coupling Layer</span>
+          <h3 class="card-title"> Atmospheric Inversion, Boundary Layer &amp; Biomass Plume Diagnostics</h3>
+          <p class="card-desc">Coupled atmospheric thermodynamics and regional aerosol transport feeding the 31-feature ML forecasting model.</p>
+        </div>
+        <div class="badge-status-online">● Physics Coupled</div>
+      </div>
+
+      <div class="phys-diag-grid">
+        <!-- Metric 1: Inversion Strength -->
+        <div class="phys-card">
+          <div class="phys-card-header">
+            <span class="phys-card-title">️ Inversion Strength</span>
+            <span class="badge-safe" id="phys-inv-badge">Thermal Profile</span>
+          </div>
+          <div class="phys-card-val-row">
+            <span class="phys-card-num" id="phys-inv-val">--</span>
+            <span class="phys-card-unit">K / km</span>
+          </div>
+          <p class="card-sub" style="font-size: 0.74rem; color: var(--text-muted);">Temperature lapse rate inversion in lower 1000m.</p>
+          <div class="phys-card-status phys-status-mixed" id="phys-inv-status">
+            <span>●</span> Calculating lapse rate...
+          </div>
+        </div>
+
+        <!-- Metric 2: Planetary Boundary Layer Height -->
+        <div class="phys-card">
+          <div class="phys-card-header">
+            <span class="phys-card-title"> Planetary Boundary Layer (PBL)</span>
+            <span class="badge-safe" id="phys-pbl-badge">Mixing Depth</span>
+          </div>
+          <div class="phys-card-val-row">
+            <span class="phys-card-num" id="phys-pbl-val">--</span>
+            <span class="phys-card-unit">meters</span>
+          </div>
+          <p class="card-sub" style="font-size: 0.74rem; color: var(--text-muted);">
+            Eff. PBL: <strong id="phys-pbl-eff">-- m</strong> • Vent. Coeff: <strong id="phys-vent-val">-- m²/s</strong>
+          </p>
+          <div class="phys-card-status phys-status-mixed" id="phys-pbl-status">
+            <span>●</span> Assessing vertical mixing volume...
+          </div>
+        </div>
+
+        <!-- Metric 3: Regional Biomass / Stubble Impact -->
+        <div class="phys-card">
+          <div class="phys-card-header">
+            <span class="phys-card-title"> Regional Biomass &amp; Stubble Smoke</span>
+            <span class="badge-safe" id="phys-biomass-badge">NASA FIRMS</span>
+          </div>
+          <div class="phys-card-val-row">
+            <span class="phys-card-num" id="phys-biomass-val">--</span>
+            <span class="phys-card-unit">/ 100 Impact</span>
+          </div>
+          <p class="card-sub" style="font-size: 0.74rem; color: var(--text-muted);">
+            Upwind Fires: <strong id="phys-fires-val">--</strong> • NW Transport Vector
+          </p>
+          <div class="phys-card-status phys-status-mixed" id="phys-biomass-status">
+            <span>●</span> Evaluating transboundary plume...
+          </div>
+        </div>
+
+        <!-- Metric 4: Two-Way Weather-Chemistry Feedback -->
+        <div class="phys-card">
+          <div class="phys-card-header">
+            <span class="phys-card-title"> Two-Way Weather-Chemistry Coupling</span>
+            <span class="badge-safe">Feedback Loop</span>
+          </div>
+          <div class="phys-card-val-row">
+            <span class="phys-card-num" id="phys-coupling-val">--</span>
+            <span class="phys-card-unit">Coupled Index</span>
+          </div>
+          <p class="card-sub" style="font-size: 0.74rem; color: var(--text-muted);">
+            Aerosol Optical Feedback: <strong id="phys-aerosol-val">--</strong>
+          </p>
+          <div class="phys-card-status phys-status-mixed" id="phys-coupling-status">
+            <span>●</span> Dynamic feedback resolved
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 24-Hour Forecast Chart & Weather Correlation Chart -->
+    <div class="charts-grid">
+      <!-- 24-Hour Forecast Graph -->
+      <div class="card card-chart">
+        <div class="chart-card-header">
+          <div class="chart-title-wrap">
+            <h3 class="card-section-title"> 24-Hour CPCB AQI &amp; Pollutant Forecast</h3>
+            <p class="chart-sub">Comparing API baseline forecast with EcoBytes Weather-Aware ML adjustment</p>
+          </div>
+          <div class="chart-toolbar">
+            <div class="chart-toggles">
+              <button id="toggle-ml" class="btn-toggle active">EcoBytes Weather-Aware ML</button>
+              <button id="toggle-api" class="btn-toggle">API Baseline</button>
+            </div>
+            <span class="chart-meta-pill">24h Continuous</span>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="forecastChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Weather vs Pollution Correlation Graph -->
+      <div class="card card-chart">
+        <div class="chart-card-header">
+          <div class="chart-title-wrap">
+            <h3 class="card-section-title">️ Physical Correlation: Wind Speed vs PM2.5</h3>
+            <p class="chart-sub">Empirical curve proving atmospheric ventilation clears Delhi NCR basin</p>
+          </div>
+          <div class="chart-toolbar">
+            <div class="chart-toggles">
+              <button id="toggle-empirical" class="btn-toggle active" type="button">Empirical Observations</button>
+              <button id="toggle-dispersion" class="btn-toggle" type="button">Dispersion Fit</button>
+            </div>
+            <span class="chart-meta-pill badge-green" id="correlation-stat-pill">r = -0.74 (Empirical Data)</span>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="correlationChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Interactive SMS Simulator Section for SIH Judges -->
+    <section id="sms-section" class="card card-simulator">
+      <div class="simulator-header">
+        <div>
+          <span class="card-tag">Interactive SIH Judge Demo</span>
+          <h2 class="section-heading"> Real-Time SMS Alert Trigger Simulator</h2>
+          <p class="section-sub">Test CPCB air quality severity levels live. Adjust the sliders or click a risk preset to see the category shift across <strong>Good, Satisfactory, Moderate, Poor, Very Poor, and Severe</strong> with instant cellular SMS formatting.</p>
+        </div>
+        <div class="gateway-status-panel">
+          <button id="open-gateway-modal-btn" class="btn btn-outline-cyan" type="button" title="Configure real cellular SMS delivery to Indian mobile networks">
+            ️ Cellular Gateway: <span id="gateway-status-pill" class="badge-neutral">Checking...</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Risk Presets for Judges -->
+      <div class="cpcb-preset-bar">
+        <span class="preset-title"> Quick CPCB Risk Presets:</span>
+        <div class="preset-buttons">
+          <button class="preset-btn" data-pm25="20" data-pm10="40" style="--btn-color: #00B050;">Good (20 µg)</button>
+          <button class="preset-btn" data-pm25="45" data-pm10="80" style="--btn-color: #92D050;">Satisfactory (45 µg)</button>
+          <button class="preset-btn" data-pm25="75" data-pm10="160" style="--btn-color: #E5A93C;">Moderate (75 µg)</button>
+          <button class="preset-btn" data-pm25="105" data-pm10="290" style="--btn-color: #FF7E00;">Poor (105 µg)</button>
+          <button class="preset-btn" data-pm25="180" data-pm10="390" style="--btn-color: #FF0000;">Very Poor (180 µg)</button>
+          <button class="preset-btn" data-pm25="320" data-pm10="490" style="--btn-color: #800000;">Severe (320 µg)</button>
+        </div>
+      </div>
+
+      <div class="simulator-body">
+        <div class="simulator-controls">
+          <!-- Simulator Recipient Mobile Input (Synced with top subscribe & mockup) -->
+          <div class="sim-phone-control-card">
+            <div class="sim-phone-header">
+              <label for="sim-phone"> Recipient Mobile Number (10 Digits for SIH Demo):</label>
+              <span id="sim-phone-badge" class="phone-status-badge badge-neutral">10 Digits Required</span>
+            </div>
+            <div class="sim-phone-input-wrap">
+              <span class="country-prefix"> +91</span>
+              <input type="tel" id="sim-phone" maxlength="10" placeholder="Enter 10-digit mobile number" />
+            </div>
+            <div id="sim-phone-feedback" class="sim-phone-feedback"></div>
+          </div>
+
+          <!-- Live CPCB Feedback Box -->
+          <div class="sim-live-cpcb-card">
+            <div class="sim-feedback-header">
+              <span>CPCB NAQI Risk Calculation:</span>
+              <span id="sim-live-rule-pill" class="badge-breach">️ Threshold Breached (PM2.5 > 50)</span>
+            </div>
+            <div class="sim-aqi-row">
+              <div class="sim-naqi-val-wrap">
+                <span id="sim-live-aqi" class="sim-naqi-num">151</span>
+                <span class="sim-naqi-max">/ 500</span>
+              </div>
+              <div id="sim-live-category-pill" class="aqi-category-pill" style="background-color: #E5A93C;">Moderate</div>
+            </div>
+            <div class="sim-advisory-box">
+              <strong>Official CPCB Guidance:</strong> <span id="sim-live-advisory">Breathing discomfort to people with asthma, lungs and heart diseases.</span>
+            </div>
+          </div>
+
+          <!-- Slider 1: PM2.5 -->
+          <div class="slider-group">
+            <div class="slider-label-row">
+              <label for="sim-pm25">Test PM2.5 Level (Threshold: 50 µg/m³):</label>
+              <span class="slider-value"><strong id="sim-pm25-val">75.0</strong> µg/m³</span>
+            </div>
+            <input type="range" id="sim-pm25" min="5" max="400" value="75" step="1" class="slider" />
+          </div>
+
+          <!-- Slider 2: PM10 -->
+          <div class="slider-group">
+            <div class="slider-label-row">
+              <label for="sim-pm10">Test PM10 Level (Threshold: 120 µg/m³):</label>
+              <span class="slider-value"><strong id="sim-pm10-val">160.0</strong> µg/m³</span>
+            </div>
+            <input type="range" id="sim-pm10" min="10" max="600" value="160" step="1" class="slider" />
+          </div>
+
+          <div class="sim-actions">
+            <button id="trigger-sms-btn" class="btn btn-danger"> Simulate Alert Trigger</button>
+            <button id="reset-sim-btn" class="btn btn-secondary">Reset to Safe Values</button>
+          </div>
+        </div>
+
+        <!-- Phone Mockup Preview of Dispatched SMS -->
+        <div class="phone-mockup">
+          <div class="phone-speaker"></div>
+          <div class="phone-screen">
+            <div class="sms-sender-header">
+              <div class="sms-avatar"></div>
+              <div>
+                <div class="sms-sender-name">EcoBytes Alert</div>
+                <div class="sms-time">Central CPCB Gateway</div>
+              </div>
+            </div>
+            <div class="mockup-recipient-banner">
+              <span class="mockup-recipient-tag">TO:</span>
+              <span id="mockup-recipient-phone" class="mockup-recipient-number">+91 [10-Digit Mobile]</span>
+              <span id="mockup-status-dot" class="mockup-dot-pending" title="Awaiting 10-digit mobile number"></span>
+            </div>
+            <div id="sms-bubble" class="sms-bubble">
+               <strong>EcoBytes CPCB Alert [Delhi-Central]:</strong> Air quality risk: MODERATE! PM2.5 (75.0 ug/m³ > 50 limit) & PM10 (160.0 ug/m³ > 120 limit). Overall NAQI: 151 (Moderate). Action: Breathing discomfort to people with asthma, lungs and heart diseases.
+            </div>
+            <div class="mockup-delivery-footer">
+              <span id="mockup-delivery-status"> Cellular SMS Engine Ready</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SMS Dispatch Log History Table -->
+      <div class="alert-history-container">
+        <h4 class="history-title">Recent Cellular SMS Dispatches (Stored in SQL DB):</h4>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Triggered At</th>
+                <th>Location</th>
+                <th>Rule Breached</th>
+                <th>PM2.5 / PM10</th>
+                <th>Recipient</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="alert-history-tbody">
+              <tr><td colspan="7" class="text-center">Loading SMS log...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture & Model Context Protocol (MCP) Information Section -->
+    <section class="card card-architecture">
+      <div class="arch-header">
+        <span class="card-tag">Technical Architecture</span>
+        <h3 class="card-title">Hybrid Weather–Chemistry Forecast Architecture</h3>
+      </div>
+      <div class="arch-grid">
+        <div class="arch-box">
+          <h4> Limitations of Traditional Numerical WRF-Chem</h4>
+          <ul>
+            <li>Requires supercomputing HPC clusters and complex MPI Fortran numerical gridding.</li>
+            <li>Takes 4 to 8 hours of intensive compute for a single Delhi NCR city forecast cycle.</li>
+            <li>Infeasible for sub-second emergency SMS dispatches and real-time municipal dashboard updates.</li>
+          </ul>
+        </div>
+
+        <div class="arch-box">
+          <h4> The EcoBytes Two-Tier Physical ML Architecture</h4>
+          <ul>
+            <li><strong>Tier 1 — Physical Coupling:</strong> Uses pressure-level inversion diagnostics, planetary boundary layer height, regional NASA FIRMS fire-transport signals, and bounded aerosol-to-mixing feedback features.</li>
+            <li><strong>Tier 2 — Local PM₂.₅ ML + CAMS Chemistry:</strong> Blends the local recursive PM₂.₅ model with the regional CAMS/Open-Meteo chemistry forecast and local bias correction for a 72-hour multi-pollutant outlook.</li>
+            <li><strong>Model Context Protocol (MCP):</strong> Native AI agent integration exposing database queries, physics diagnostics, feature generation, and cellular alert dispatching.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-content">
+      <p><strong>EcoBytes</strong> • Smart India Hackathon (SIH) Prototype • Delhi NCR Centric</p>
+      <p class="footer-notes">Aligned with Ministry of Environment, Forest and Climate Change (MoEFCC) & Central Pollution Control Board (CPCB) NAQI guidelines.</p>
+    </div>
+  </footer>
+
+  <!-- Cellular SMS Gateway Setup Modal -->
+  <div id="gateway-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-row">
+          <span class="modal-icon"></span>
+          <div>
+            <h3 class="modal-title">Real Cellular SMS Gateway Settings</h3>
+            <p class="modal-sub">Push actual cellular SMS alerts directly to subscribers' mobile phones.</p>
+          </div>
+        </div>
+        <button id="close-gateway-modal-btn" class="btn-close" type="button">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Live Carrier Mode Toggle -->
+        <div class="gateway-toggle-card">
+          <div class="toggle-info">
+            <strong> Live Carrier Push (Jio, Airtel, Vi, BSNL)</strong>
+            <p>When enabled, every simulation trigger and new subscriber alert sends a real cellular SMS to the physical phone.</p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="gateway-live-toggle" />
+            <span class="slider-round"></span>
+          </label>
+        </div>
+
+        <!-- Provider Selection Tabs -->
+        <div class="provider-tabs">
+          <button class="provider-tab active" id="tab-fast2sms" data-provider="fast2sms" type="button"> Fast2SMS (India Quick Route • Free Trial)</button>
+          <button class="provider-tab" id="tab-twilio" data-provider="twilio" type="button"> Twilio (Global)</button>
+        </div>
+
+        <!-- Fast2SMS Configuration Pane -->
+        <div id="pane-fast2sms" class="provider-pane">
+          <div class="form-group">
+            <label for="fast2sms-api-key">Fast2SMS API Authorization Key:</label>
+            <div class="input-with-action">
+              <input type="password" id="fast2sms-api-key" placeholder="Paste your Fast2SMS API Key here" />
+              <button id="toggle-key-visibility-btn" class="btn-sm-ghost" type="button">️</button>
+            </div>
+            <span id="gateway-key-hint" class="input-hint">Saved securely in local database. Free trial credits available upon signup.</span>
+          </div>
+
+          <div class="fast2sms-guide-box">
+            <h4> Quick Guide: Free Fast2SMS Key in 1 Minute</h4>
+            <ol>
+              <li>Go to <a href="https://www.fast2sms.com" target="_blank" rel="noopener"><strong>fast2sms.com</strong> ↗</a> and sign up with your Indian mobile number (free wallet balance provided).</li>
+              <li>In the left dashboard menu, click <strong>"Dev API"</strong>.</li>
+              <li>Copy your <strong>API Authorization Key</strong> and paste it above!</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Twilio Configuration Pane -->
+        <div id="pane-twilio" class="provider-pane hidden">
+          <div class="form-group">
+            <label for="twilio-sid">Twilio Account SID:</label>
+            <input type="text" id="twilio-sid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+          </div>
+          <div class="form-group">
+            <label for="twilio-token">Twilio Auth Token:</label>
+            <input type="password" id="twilio-token" placeholder="Your Twilio Auth Token" />
+          </div>
+          <div class="form-group">
+            <label for="twilio-from">Twilio Phone Number (E.164 format):</label>
+            <input type="text" id="twilio-from" placeholder="+1xxxxxxxxxx" />
+          </div>
+        </div>
+
+        <!-- Live Test SMS Dispatch Card -->
+        <div class="test-dispatch-card">
+          <label for="gateway-test-phone"> Send Test SMS to My Mobile:</label>
+          <div class="test-dispatch-row">
+            <span class="country-prefix"> +91</span>
+            <input type="tel" id="gateway-test-phone" maxlength="10" placeholder="10-digit mobile" />
+            <button id="send-test-sms-btn" class="btn btn-primary-sm" type="button"> Push Test SMS</button>
+          </div>
+          <div id="gateway-test-feedback" class="test-feedback"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="save-gateway-settings-btn" class="btn btn-primary" type="button">Save Settings & Connect</button>
+        <button id="cancel-gateway-modal-btn" class="btn btn-secondary" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=3.1"></script>
+</body>
+</html>
